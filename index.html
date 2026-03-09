@@ -1,0 +1,999 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>FlowFrameX — Frame Generation Engine</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Syne:wght@400;700;800&family=JetBrains+Mono:wght@300;400;700&display=swap" rel="stylesheet"/>
+
+<style>
+:root {
+  --bg: #040406;
+  --bg2: #07080f;
+  --cyan: #00f0ff;
+  --orange: #ff4d00;
+  --white: #f0f4ff;
+  --muted: #3a3d52;
+  --card: rgba(255,255,255,0.03);
+  --border: rgba(0,240,255,0.12);
+  --glow: 0 0 40px rgba(0,240,255,0.25);
+}
+
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--white);
+  font-family: 'Syne', sans-serif;
+  overflow-x: hidden;
+  cursor: none;
+}
+
+/* ─── CUSTOM CURSOR ─── */
+#cursor {
+  position: fixed; top:0; left:0; z-index:9999;
+  width:12px; height:12px;
+  background: var(--cyan);
+  border-radius: 50%;
+  pointer-events: none;
+  transform: translate(-50%,-50%);
+  transition: transform 0.08s, width 0.2s, height 0.2s, background 0.2s;
+  mix-blend-mode: difference;
+}
+#cursor-ring {
+  position: fixed; top:0; left:0; z-index:9998;
+  width:36px; height:36px;
+  border: 1px solid rgba(0,240,255,0.5);
+  border-radius: 50%;
+  pointer-events: none;
+  transform: translate(-50%,-50%);
+  transition: transform 0.18s ease, width 0.3s, height 0.3s;
+}
+body:hover #cursor { transform: translate(-50%,-50%) scale(1); }
+
+/* ─── GRAIN OVERLAY ─── */
+body::before {
+  content:'';
+  position: fixed; inset:0; z-index:9000;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+  opacity: 0.35;
+}
+
+/* ─── SCROLLBAR ─── */
+::-webkit-scrollbar { width:3px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--cyan); border-radius:2px; }
+
+/* ─── NAV ─── */
+nav {
+  position: fixed; top:0; left:0; right:0; z-index:1000;
+  padding: 20px 48px;
+  display: flex; justify-content: space-between; align-items: center;
+  background: linear-gradient(to bottom, rgba(4,4,6,0.9), transparent);
+  backdrop-filter: blur(0px);
+}
+.nav-logo {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 22px;
+  letter-spacing: 4px;
+  color: var(--cyan);
+  text-shadow: 0 0 20px rgba(0,240,255,0.5);
+}
+.nav-links {
+  display: flex; gap: 40px; list-style: none;
+}
+.nav-links a {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px; letter-spacing: 2px;
+  color: rgba(240,244,255,0.5);
+  text-decoration: none; text-transform: uppercase;
+  transition: color 0.3s;
+}
+.nav-links a:hover { color: var(--cyan); }
+.nav-cta {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px; letter-spacing: 2px; text-transform: uppercase;
+  padding: 10px 24px;
+  background: transparent;
+  border: 1px solid var(--cyan);
+  color: var(--cyan);
+  cursor: none;
+  transition: all 0.3s;
+  clip-path: polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%);
+}
+.nav-cta:hover {
+  background: var(--cyan);
+  color: var(--bg);
+  box-shadow: var(--glow);
+}
+
+/* ─── HERO ─── */
+#hero {
+  position: relative; height: 100vh; overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+}
+#hero-canvas {
+  position: absolute; inset:0; z-index:0;
+}
+.hero-grid-overlay {
+  position: absolute; inset:0; z-index:1;
+  background-image:
+    linear-gradient(rgba(0,240,255,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,240,255,0.04) 1px, transparent 1px);
+  background-size: 60px 60px;
+  mask-image: radial-gradient(ellipse at center, black 30%, transparent 80%);
+}
+.hero-content {
+  position: relative; z-index:2;
+  text-align: center;
+  display: flex; flex-direction:column; align-items:center; gap:16px;
+}
+.hero-tag {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px; letter-spacing: 4px; text-transform: uppercase;
+  color: var(--cyan);
+  border: 1px solid rgba(0,240,255,0.3);
+  padding: 6px 18px;
+  display: inline-block;
+  animation: fadeInDown 0.8s ease both;
+}
+.hero-title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(80px, 14vw, 180px);
+  line-height: 0.9;
+  letter-spacing: 8px;
+  background: linear-gradient(180deg, #ffffff 0%, rgba(0,240,255,0.8) 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  animation: fadeInUp 1s ease 0.2s both;
+}
+.hero-sub {
+  font-size: 14px; letter-spacing: 8px; text-transform: uppercase;
+  color: rgba(240,244,255,0.4);
+  animation: fadeInUp 1s ease 0.4s both;
+}
+
+/* FPS counter widget */
+.fps-widget {
+  display: flex; align-items: center; gap:24px;
+  margin-top: 16px;
+  animation: fadeInUp 1s ease 0.6s both;
+}
+.fps-box {
+  display: flex; flex-direction:column; align-items:center;
+  padding: 14px 28px;
+  border: 1px solid var(--muted);
+  position: relative;
+  background: rgba(7,8,15,0.8);
+  clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%);
+}
+.fps-box.active {
+  border-color: var(--cyan);
+  box-shadow: var(--glow), inset 0 0 30px rgba(0,240,255,0.05);
+}
+.fps-num {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 40px; font-weight:700;
+  line-height:1;
+}
+.fps-box:not(.active) .fps-num { color: var(--muted); }
+.fps-box.active .fps-num { color: var(--cyan); text-shadow: 0 0 20px var(--cyan); }
+.fps-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px; letter-spacing:3px; text-transform:uppercase;
+  color: rgba(240,244,255,0.3); margin-top:4px;
+}
+.fps-arrow {
+  font-size: 24px; color: var(--orange);
+  text-shadow: 0 0 15px var(--orange);
+  animation: pulse-arrow 1.5s ease infinite;
+}
+@keyframes pulse-arrow { 0%,100%{transform:translateX(0);opacity:1} 50%{transform:translateX(6px);opacity:0.6} }
+
+.hero-buttons {
+  display:flex; gap:16px; margin-top:8px;
+  animation: fadeInUp 1s ease 0.8s both;
+}
+.btn-primary {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px; letter-spacing:3px; text-transform:uppercase;
+  padding: 16px 40px;
+  background: var(--cyan);
+  color: var(--bg);
+  border: none; cursor:none;
+  clip-path: polygon(10px 0%, 100% 0%, calc(100% - 10px) 100%, 0% 100%);
+  font-weight:700;
+  transition: all 0.3s;
+  box-shadow: 0 0 30px rgba(0,240,255,0.3);
+}
+.btn-primary:hover { box-shadow: 0 0 60px rgba(0,240,255,0.6); transform: translateY(-2px); }
+.btn-ghost {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px; letter-spacing:3px; text-transform:uppercase;
+  padding: 16px 40px;
+  background: transparent;
+  color: var(--white);
+  border: 1px solid var(--muted);
+  cursor:none;
+  clip-path: polygon(10px 0%, 100% 0%, calc(100% - 10px) 100%, 0% 100%);
+  transition: all 0.3s;
+}
+.btn-ghost:hover { border-color: var(--white); }
+
+/* scroll indicator */
+.scroll-indicator {
+  position: absolute; bottom:40px; left:50%; transform:translateX(-50%);
+  z-index:2; display:flex; flex-direction:column; align-items:center; gap:8px;
+  animation: fadeIn 2s ease 1.5s both;
+}
+.scroll-line {
+  width:1px; height:60px;
+  background: linear-gradient(to bottom, transparent, var(--cyan));
+  animation: scrollLine 2s ease infinite;
+}
+@keyframes scrollLine { 0%{transform:scaleY(0);transform-origin:top} 50%{transform:scaleY(1);transform-origin:top} 51%{transform:scaleY(1);transform-origin:bottom} 100%{transform:scaleY(0);transform-origin:bottom} }
+.scroll-txt {
+  font-family:'JetBrains Mono',monospace; font-size:9px; letter-spacing:3px;
+  color:rgba(0,240,255,0.4);
+}
+
+/* ─── TICKER ─── */
+.ticker-wrap {
+  background: var(--cyan);
+  padding: 12px 0;
+  overflow: hidden;
+  position: relative;
+  z-index:3;
+}
+.ticker-track {
+  display:flex; gap:0;
+  animation: ticker 20s linear infinite;
+  white-space: nowrap;
+  width: max-content;
+}
+.ticker-item {
+  font-family: 'JetBrains Mono', monospace;
+  font-size:11px; letter-spacing:3px; text-transform:uppercase;
+  color: var(--bg);
+  padding: 0 40px;
+  font-weight:700;
+}
+.ticker-sep { color: rgba(4,4,6,0.4); }
+@keyframes ticker { from{transform:translateX(0)} to{transform:translateX(-50%)} }
+
+/* ─── SECTIONS ─── */
+section { padding: 120px 48px; position:relative; }
+.section-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size:10px; letter-spacing:5px; text-transform:uppercase;
+  color: var(--cyan); margin-bottom:16px;
+  display:flex; align-items:center; gap:12px;
+}
+.section-label::before {
+  content:''; width:32px; height:1px; background:var(--cyan);
+}
+.section-title {
+  font-family:'Bebas Neue', sans-serif;
+  font-size: clamp(48px, 6vw, 80px);
+  line-height:1; letter-spacing:3px;
+  color: var(--white);
+}
+.section-title span { color: var(--cyan); }
+
+/* ─── HOW IT WORKS – 3D PIPELINE ─── */
+#pipeline {
+  background: var(--bg2);
+  clip-path: polygon(0 4%, 100% 0%, 100% 96%, 0% 100%);
+  padding: 160px 48px;
+}
+.pipeline-header { max-width:600px; margin-bottom:80px; }
+.pipeline-grid {
+  display:grid; grid-template-columns: repeat(3,1fr); gap:2px;
+  perspective: 1200px;
+}
+.p-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  padding: 48px 36px;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.5s ease, box-shadow 0.5s ease, border-color 0.3s;
+  transform: rotateX(8deg);
+  transform-style: preserve-3d;
+}
+.p-card:hover {
+  transform: rotateX(0deg) translateY(-12px);
+  box-shadow: var(--glow), 0 40px 80px rgba(0,0,0,0.5);
+  border-color: var(--cyan);
+  z-index:2;
+}
+.p-card::before {
+  content:'';
+  position:absolute; top:0; left:0; right:0; height:2px;
+  background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+  opacity:0;
+  transition: opacity 0.3s;
+}
+.p-card:hover::before { opacity:1; }
+.p-num {
+  font-family:'Bebas Neue',sans-serif; font-size:100px;
+  color: rgba(0,240,255,0.06);
+  position:absolute; top:-10px; right:20px;
+  line-height:1;
+  transition: color 0.3s;
+}
+.p-card:hover .p-num { color: rgba(0,240,255,0.12); }
+.p-icon {
+  font-size:28px; margin-bottom:24px;
+  filter: grayscale(1);
+  transition: filter 0.3s;
+}
+.p-card:hover .p-icon { filter: none; }
+.p-title {
+  font-family:'Syne',sans-serif; font-size:22px; font-weight:800;
+  margin-bottom:12px;
+}
+.p-desc {
+  font-size:14px; line-height:1.8;
+  color:rgba(240,244,255,0.5);
+}
+.p-tag {
+  margin-top:24px;
+  display:inline-block;
+  font-family:'JetBrains Mono',monospace;
+  font-size:10px; letter-spacing:2px; text-transform:uppercase;
+  color:var(--cyan);
+  border:1px solid rgba(0,240,255,0.3);
+  padding:4px 12px;
+}
+
+/* connector lines between cards */
+.pipeline-connector {
+  display: flex; align-items: center; justify-content: center;
+  position: relative;
+}
+
+/* ─── FORMULA SECTION ─── */
+#formula {
+  text-align:center;
+  background: var(--bg);
+  overflow:hidden;
+  position:relative;
+}
+.formula-bg-text {
+  position:absolute; top:50%; left:50%;
+  transform:translate(-50%,-50%);
+  font-family:'Bebas Neue',sans-serif;
+  font-size:30vw; line-height:1;
+  color:rgba(0,240,255,0.015);
+  white-space:nowrap; pointer-events:none;
+  z-index:0;
+}
+.formula-inner { position:relative; z-index:1; }
+.formula-display {
+  display: flex; align-items:center; justify-content:center; gap:24px;
+  flex-wrap: wrap;
+  margin: 60px 0;
+}
+.f-part {
+  display:flex; flex-direction:column; align-items:center;
+  gap:8px;
+  animation: floatUp 3s ease infinite;
+}
+.f-part:nth-child(3) { animation-delay:0.5s; }
+.f-part:nth-child(5) { animation-delay:1s; }
+.f-part:nth-child(7) { animation-delay:1.5s; }
+@keyframes floatUp { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+
+.f-num {
+  font-family:'Bebas Neue',sans-serif;
+  font-size: clamp(48px,8vw,100px);
+  line-height:1;
+  color: var(--white);
+}
+.f-num.highlight { color: var(--cyan); text-shadow: 0 0 40px rgba(0,240,255,0.5); }
+.f-num.result { color: var(--orange); text-shadow: 0 0 40px rgba(255,77,0,0.5); }
+.f-label {
+  font-family:'JetBrains Mono',monospace;
+  font-size:10px; letter-spacing:3px; color:rgba(240,244,255,0.3);
+}
+.f-operator {
+  font-family:'Bebas Neue',sans-serif;
+  font-size: clamp(40px,5vw,70px);
+  color:rgba(240,244,255,0.2);
+  align-self:center;
+}
+.formula-equals {
+  font-family:'Bebas Neue',sans-serif;
+  font-size: clamp(60px,8vw,100px);
+  color: var(--orange);
+}
+.formula-proof {
+  display:flex; gap:40px; justify-content:center; margin-top:40px; flex-wrap:wrap;
+}
+.proof-item {
+  background: var(--card);
+  border: 1px solid var(--border);
+  padding: 24px 36px;
+  clip-path: polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%);
+}
+.proof-item.correct { border-color: rgba(0,255,100,0.3); }
+.proof-item.wrong { border-color: rgba(255,77,0,0.3); }
+.proof-eq {
+  font-family:'JetBrains Mono',monospace; font-size:18px; font-weight:700;
+  margin-bottom:8px;
+}
+.proof-item.correct .proof-eq { color:#00ff64; }
+.proof-item.wrong .proof-eq { color:var(--orange); }
+.proof-verdict {
+  font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:2px;
+  color:rgba(240,244,255,0.4);
+}
+
+/* ─── FEATURES GRID ─── */
+#features { background: var(--bg2); }
+.features-grid {
+  display:grid; grid-template-columns:repeat(auto-fill, minmax(300px,1fr));
+  gap:16px; margin-top:60px;
+}
+.f-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  padding: 40px 32px;
+  position:relative; overflow:hidden;
+  transition: all 0.4s;
+}
+.f-card::after {
+  content:'';
+  position:absolute; bottom:0; left:0; right:0; height:0;
+  background: linear-gradient(to top, rgba(0,240,255,0.06), transparent);
+  transition: height 0.4s;
+}
+.f-card:hover { border-color: rgba(0,240,255,0.4); transform:translateY(-6px); }
+.f-card:hover::after { height:100%; }
+.f-card-icon { font-size:32px; margin-bottom:20px; }
+.f-card-title {
+  font-family:'Syne',sans-serif; font-size:18px; font-weight:800;
+  margin-bottom:10px;
+}
+.f-card-desc {
+  font-size:14px; line-height:1.8; color:rgba(240,244,255,0.5);
+}
+.f-card-stat {
+  margin-top:20px;
+  font-family:'JetBrains Mono',monospace;
+  font-size:24px; font-weight:700;
+  color: var(--cyan);
+}
+.f-card-stat span {
+  font-size:11px; letter-spacing:2px; color:rgba(240,244,255,0.3);
+  vertical-align:middle; margin-left:6px;
+}
+
+/* ─── COMPARISON ─── */
+#compare {
+  background: var(--bg);
+  text-align:center;
+}
+.compare-grid {
+  display:grid; grid-template-columns:1fr 1fr; gap:2px; margin-top:60px;
+  max-width:900px; margin-left:auto; margin-right:auto;
+}
+.c-panel {
+  padding: 60px 48px;
+  position:relative;
+}
+.c-panel.before {
+  background: rgba(255,77,0,0.05);
+  border: 1px solid rgba(255,77,0,0.2);
+}
+.c-panel.after {
+  background: rgba(0,240,255,0.05);
+  border: 1px solid rgba(0,240,255,0.2);
+}
+.c-label {
+  font-family:'JetBrains Mono',monospace;
+  font-size:10px; letter-spacing:4px; text-transform:uppercase;
+  margin-bottom:20px;
+}
+.c-panel.before .c-label { color:var(--orange); }
+.c-panel.after .c-label { color:var(--cyan); }
+.c-fps {
+  font-family:'Bebas Neue',sans-serif; font-size:100px; line-height:1;
+}
+.c-panel.before .c-fps { color:rgba(255,77,0,0.5); }
+.c-panel.after .c-fps { color:var(--cyan); text-shadow:0 0 60px rgba(0,240,255,0.4); }
+.c-items { margin-top:32px; text-align:left; display:flex; flex-direction:column; gap:12px; }
+.c-item {
+  font-family:'JetBrains Mono',monospace; font-size:13px;
+  display:flex; align-items:center; gap:10px; color:rgba(240,244,255,0.6);
+}
+.c-item::before { content:''; width:6px; height:6px; border-radius:50%; flex-shrink:0; }
+.c-panel.before .c-item::before { background:var(--orange); }
+.c-panel.after .c-item::before { background:var(--cyan); }
+
+/* ─── DOWNLOAD CTA ─── */
+#download {
+  background: var(--bg2);
+  clip-path: polygon(0 8%, 100% 0%, 100% 92%, 0% 100%);
+  padding: 160px 48px;
+  text-align:center;
+  position:relative; overflow:hidden;
+}
+#download-canvas {
+  position:absolute; inset:0; z-index:0; opacity:0.6;
+}
+.download-inner { position:relative; z-index:1; }
+.download-title {
+  font-family:'Bebas Neue',sans-serif;
+  font-size:clamp(60px,10vw,130px); line-height:0.9;
+  letter-spacing:4px;
+  background: linear-gradient(135deg, var(--white) 0%, var(--cyan) 100%);
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+  margin-bottom:24px;
+}
+.download-sub {
+  font-size:16px; color:rgba(240,244,255,0.5); margin-bottom:48px;
+  letter-spacing:2px;
+}
+.btn-download {
+  font-family:'JetBrains Mono',monospace;
+  font-size:13px; letter-spacing:4px; text-transform:uppercase;
+  padding: 20px 60px;
+  background: linear-gradient(135deg, var(--cyan), rgba(0,240,255,0.6));
+  color: var(--bg);
+  border:none; cursor:none;
+  font-weight:700;
+  clip-path: polygon(12px 0%, 100% 0%, calc(100% - 12px) 100%, 0% 100%);
+  box-shadow: 0 0 60px rgba(0,240,255,0.4);
+  transition: all 0.3s;
+  display:inline-block; text-decoration:none;
+}
+.btn-download:hover {
+  box-shadow: 0 0 100px rgba(0,240,255,0.7);
+  transform: translateY(-4px) scale(1.02);
+}
+.version-tag {
+  margin-top:24px;
+  font-family:'JetBrains Mono',monospace;
+  font-size:11px; letter-spacing:3px; color:rgba(240,244,255,0.25);
+}
+
+/* ─── FOOTER ─── */
+footer {
+  background: var(--bg);
+  padding: 60px 48px;
+  border-top: 1px solid rgba(0,240,255,0.06);
+  display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:24px;
+}
+.footer-logo {
+  font-family:'Bebas Neue',sans-serif; font-size:28px; letter-spacing:6px;
+  color:var(--cyan); opacity:0.6;
+}
+.footer-links { display:flex; gap:32px; }
+.footer-links a {
+  font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:3px; text-transform:uppercase;
+  color:rgba(240,244,255,0.3); text-decoration:none;
+  transition:color 0.3s;
+}
+.footer-links a:hover { color:var(--cyan); }
+.footer-copy {
+  font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:2px;
+  color:rgba(240,244,255,0.2);
+}
+
+/* ─── REVEAL ANIMATIONS ─── */
+.reveal {
+  opacity:0; transform:translateY(40px);
+  transition: opacity 0.9s ease, transform 0.9s ease;
+}
+.reveal.visible { opacity:1; transform:translateY(0); }
+.reveal-delay-1 { transition-delay:0.1s; }
+.reveal-delay-2 { transition-delay:0.2s; }
+.reveal-delay-3 { transition-delay:0.3s; }
+.reveal-delay-4 { transition-delay:0.4s; }
+
+@keyframes fadeInDown { from{opacity:0;transform:translateY(-20px)} to{opacity:1;transform:translateY(0)} }
+@keyframes fadeInUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+@keyframes fadeIn { from{opacity:0} to{opacity:1} }
+
+/* ─── RESPONSIVE ─── */
+@media(max-width:900px) {
+  nav { padding:16px 24px; }
+  .nav-links { display:none; }
+  section { padding:80px 24px; }
+  .pipeline-grid { grid-template-columns:1fr; }
+  .compare-grid { grid-template-columns:1fr; }
+  .formula-display { gap:12px; }
+  footer { flex-direction:column; text-align:center; }
+  .footer-links { flex-wrap:wrap; justify-content:center; }
+}
+</style>
+</head>
+<body>
+
+<!-- CURSOR -->
+<div id="cursor"></div>
+<div id="cursor-ring"></div>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">FFX</div>
+  <ul class="nav-links">
+    <li><a href="#pipeline">How It Works</a></li>
+    <li><a href="#formula">Formula</a></li>
+    <li><a href="#features">Features</a></li>
+    <li><a href="https://github.com/flowframex/FlowFrameX/raw/main/FlowFrameX.exe">Download</a></li>
+  </ul>
+  <button class="nav-cta">Get FlowFrameX</button>
+</nav>
+
+<!-- HERO -->
+<section id="hero">
+  <canvas id="hero-canvas"></canvas>
+  <div class="hero-grid-overlay"></div>
+  <div class="hero-content">
+    <div class="hero-tag">// Frame Generation Engine v1.0</div>
+    <h1 class="hero-title">FLOWFRAMEX</h1>
+    <p class="hero-sub">Double Your FPS. Zero Compromise.</p>
+    <div class="fps-widget">
+      <div class="fps-box">
+        <div class="fps-num">30</div>
+        <div class="fps-label">Native FPS</div>
+      </div>
+      <div class="fps-arrow">→</div>
+      <div class="fps-box active">
+        <div class="fps-num" id="fps-counter">60</div>
+        <div class="fps-label">With FlowFrameX</div>
+      </div>
+    </div>
+    <div class="hero-buttons">
+      <a href="https://github.com/flowframex/FlowFrameX/raw/main/FlowFrameX.exe" class="btn-primary">Download Now</a>
+      <a href="#pipeline" class="btn-ghost">How It Works</a>
+    </div>
+  </div>
+  <div class="scroll-indicator">
+    <div class="scroll-line"></div>
+    <div class="scroll-txt">Scroll</div>
+  </div>
+</section>
+
+<!-- TICKER -->
+<div class="ticker-wrap">
+  <div class="ticker-track">
+    <span class="ticker-item">VRAM-Native Processing</span>
+    <span class="ticker-item ticker-sep">✦</span>
+    <span class="ticker-item">CUDA Accelerated</span>
+    <span class="ticker-item ticker-sep">✦</span>
+    <span class="ticker-item">Sub-1ms Latency</span>
+    <span class="ticker-item ticker-sep">✦</span>
+    <span class="ticker-item">Zero Input Interference</span>
+    <span class="ticker-item ticker-sep">✦</span>
+    <span class="ticker-item">Smart Half-Rate Capture</span>
+    <span class="ticker-item ticker-sep">✦</span>
+    <span class="ticker-item">Extrapolation Formula</span>
+    <span class="ticker-item ticker-sep">✦</span>
+    <span class="ticker-item">VRAM-Native Processing</span>
+    <span class="ticker-item ticker-sep">✦</span>
+    <span class="ticker-item">CUDA Accelerated</span>
+    <span class="ticker-item ticker-sep">✦</span>
+    <span class="ticker-item">Sub-1ms Latency</span>
+    <span class="ticker-item ticker-sep">✦</span>
+    <span class="ticker-item">Zero Input Interference</span>
+    <span class="ticker-item ticker-sep">✦</span>
+    <span class="ticker-item">Smart Half-Rate Capture</span>
+    <span class="ticker-item ticker-sep">✦</span>
+    <span class="ticker-item">Extrapolation Formula</span>
+    <span class="ticker-item ticker-sep">✦</span>
+  </div>
+</div>
+
+<!-- PIPELINE -->
+<section id="pipeline">
+  <div class="pipeline-header reveal">
+    <div class="section-label">// Architecture</div>
+    <h2 class="section-title">Three Layers.<br><span>One Engine.</span></h2>
+  </div>
+  <div class="pipeline-grid">
+    <div class="p-card reveal reveal-delay-1">
+      <div class="p-num">01</div>
+      <div class="p-icon">🎯</div>
+      <h3 class="p-title">Capture Layer</h3>
+      <p class="p-desc">Smart half-rate screen capture. If you target 60fps, the engine only captures 30 — reducing CPU overhead by half while feeding the pipeline exactly what it needs.</p>
+      <div class="p-tag">SMART CAPTURE</div>
+    </div>
+    <div class="p-card reveal reveal-delay-2">
+      <div class="p-num">02</div>
+      <div class="p-icon">⚡</div>
+      <h3 class="p-title">Input Pass-Through</h3>
+      <p class="p-desc">Zero interference input routing. Every mouse move, every keypress passes through the engine to the system with absolute zero blocking — your controls stay yours.</p>
+      <div class="p-tag">NO LATENCY</div>
+    </div>
+    <div class="p-card reveal reveal-delay-3">
+      <div class="p-num">03</div>
+      <div class="p-icon">📊</div>
+      <h3 class="p-title">Live CLI Stats</h3>
+      <p class="p-desc">Real-time performance dashboard. Monitor FPS gain, VRAM usage, latency metrics, and frame generation accuracy — all live as you game.</p>
+      <div class="p-tag">REAL-TIME</div>
+    </div>
+  </div>
+</section>
+
+<!-- FORMULA -->
+<section id="formula">
+  <div class="formula-bg-text">FFX</div>
+  <div class="formula-inner">
+    <div class="section-label reveal" style="justify-content:center">// The Math</div>
+    <h2 class="section-title reveal" style="text-align:center">The Formula That<br><span>Changed Everything</span></h2>
+    <p class="reveal" style="margin-top:16px;color:rgba(240,244,255,0.4);font-size:14px;letter-spacing:2px;text-align:center;max-width:560px;margin-left:auto;margin-right:auto;line-height:1.9">
+      A lite version of DLSS
+    </p>
+
+    <div class="formula-display reveal">
+      <div class="f-part">
+        <div class="f-num">2</div>
+        <div class="f-label">multiplier</div>
+      </div>
+      <div class="f-operator">×</div>
+      <div class="f-part">
+        <div class="f-num highlight">F₂</div>
+        <div class="f-label">Current Frame</div>
+      </div>
+      <div class="f-operator">−</div>
+      <div class="f-part">
+        <div class="f-num highlight" style="color:rgba(0,240,255,0.5)">F₁</div>
+        <div class="f-label">Previous Frame</div>
+      </div>
+      <div class="formula-equals">=</div>
+      <div class="f-part">
+        <div class="f-num result">F₂.₅</div>
+        <div class="f-label">Generated Frame</div>
+      </div>
+    </div>
+
+    <div class="formula-proof reveal">
+      <div class="proof-item correct">
+        <div class="proof-eq">2×20 − 15 = 25 ✓</div>
+        <div class="proof-verdict">FlowFrameX Formula — CORRECT</div>
+      </div>
+      <div class="proof-item wrong">
+        <div class="proof-eq">20 + 15 = 35 ✗</div>
+        <div class="proof-verdict">Simple Average — WRONG</div>
+      </div>
+    </div>
+
+    <p class="reveal" style="margin-top:40px;color:rgba(240,244,255,0.3);font-family:'JetBrains Mono',monospace;font-size:12px;text-align:center;letter-spacing:2px">
+      // No ANALYSIS of 100% motion vectors · Pure direction vector
+    </p>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section id="features">
+  <div class="reveal">
+    <div class="section-label">// Capabilities</div>
+    <h2 class="section-title">Built Different.<br><span>Runs Faster.</span></h2>
+  </div>
+  <div class="features-grid">
+    <div class="f-card reveal reveal-delay-1">
+      <div class="f-card-icon">⚡</div>
+      <h3 class="f-card-title">VRAM-Native Pipeline</h3>
+      <p class="f-card-desc">Every operation — capture, transfer, calculation — lives inside VRAM. No bus trips. No bottlenecks. The fastest memory available, used fully.</p>
+      <div class="f-card-stat">90% <span>latency reduction</span></div>
+    </div>
+    <div class="f-card reveal reveal-delay-2">
+      <div class="f-card-icon">🎮</div>
+      <h3 class="f-card-title">CUDA Acceleration</h3>
+      <p class="f-card-desc">Frame math offloaded entirely to GPU CUDA cores — completely freeing your CPU for the game engine itself. More FPS everywhere.</p>
+      <div class="f-card-stat">0% <span>CPU overhead added</span></div>
+    </div>
+    <div class="f-card reveal reveal-delay-3">
+      <div class="f-card-icon">🖱️</div>
+      <h3 class="f-card-title">Zero Input Latency</h3>
+      <p class="f-card-desc">The engine is invisible to your inputs. Clicks, moves, keypresses — they pass through without a single millisecond of added delay.</p>
+      <div class="f-card-stat">&lt;1ms <span>input delay</span></div>
+    </div>
+    <div class="f-card reveal reveal-delay-1">
+      <div class="f-card-icon">🎯</div>
+      <h3 class="f-card-title">Smart Capture Rate</h3>
+      <p class="f-card-desc">Set your target FPS and the engine captures at half automatically. No wasted resources on frames the engine never needed to see.</p>
+      <div class="f-card-stat">50% <span>capture overhead</span></div>
+    </div>
+    <div class="f-card reveal reveal-delay-2">
+      <div class="f-card-icon">🔮</div>
+      <h3 class="f-card-title">Extrapolation, Not Interpolation</h3>
+      <p class="f-card-desc">The engine predicts forward. Not backward. Not blended. Every generated frame is a direction vector — sharp, clean, ahead of time.</p>
+      <div class="f-card-stat">0 <span>blur artifacts</span></div>
+    </div>
+    <div class="f-card reveal reveal-delay-3">
+      <div class="f-card-icon">🖥️</div>
+      <h3 class="f-card-title">Works on Potato Hardware</h3>
+      <p class="f-card-desc">Designed from day one for low-end GPUs. No pixel-by-pixel analysis. No motion vectors. Just math that's fast enough for anyone.</p>
+      <div class="f-card-stat">GTX 7xx <span>minimum</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- COMPARE -->
+<section id="compare">
+  <div class="reveal">
+    <div class="section-label" style="justify-content:center">// Results</div>
+    <h2 class="section-title" style="text-align:center">Before vs <span>After</span></h2>
+  </div>
+  <div class="compare-grid reveal">
+    <div class="c-panel before">
+      <div class="c-label">Without FlowFrameX</div>
+      <div class="c-fps">30</div>
+      <div class="c-items">
+        <div class="c-item">Choppy gameplay</div>
+        <div class="c-item">CPU bottlenecked</div>
+        <div class="c-item">45ms+ input lag</div>
+        <div class="c-item">Unenjoyable on low-end</div>
+      </div>
+    </div>
+    <div class="c-panel after">
+      <div class="c-label">With FlowFrameX</div>
+      <div class="c-fps">60</div>
+      <div class="c-items">
+        <div class="c-item">Buttery smooth frames</div>
+        <div class="c-item">GPU-native processing</div>
+        <div class="c-item">Sub-1ms input delay</div>
+        <div class="c-item">Runs anywhere</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- DOWNLOAD -->
+<section id="download">
+  <canvas id="download-canvas"></canvas>
+  <div class="download-inner">
+    <div class="section-label reveal" style="justify-content:center">// Launch</div>
+    <h2 class="download-title reveal">DOUBLE<br>YOUR FPS<br>TODAY.</h2>
+    <p class="download-sub reveal">Free. Open. Built by a dev who needed it.</p>
+    <a href="https://github.com/flowframex/FlowFrameX/raw/main/FlowFrameX.exe" class="btn-download reveal">⬇ &nbsp;Download FlowFrameX</a>
+    <div class="version-tag reveal">v1.0 BETA · Windows x64 · Requires CUDA-capable GPU</div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-logo">FLOWFRAMEX</div>
+  <div class="footer-links">
+    <a href="#">Documentation</a>
+    <a href="https://github.com/flowframex/FlowFrameX">GitHub</a>
+    <a href="#">Changelog</a>
+    <a href="https://www.instagram.com/satyyam_02/">Instagram</a>
+  </div>
+  <div class="footer-copy">// OPEN SOURCE - Feel free to contribute</div>
+</footer>
+
+<script>
+/* ── CURSOR ── */
+const cursor = document.getElementById('cursor');
+const ring = document.getElementById('cursor-ring');
+let mx=0, my=0, rx=0, ry=0;
+document.addEventListener('mousemove', e => { mx=e.clientX; my=e.clientY; cursor.style.left=mx+'px'; cursor.style.top=my+'px'; });
+function animRing(){
+  rx += (mx-rx)*0.12; ry += (my-ry)*0.12;
+  ring.style.left=rx+'px'; ring.style.top=ry+'px';
+  requestAnimationFrame(animRing);
+}
+animRing();
+document.querySelectorAll('a,button,.p-card,.f-card,.c-panel').forEach(el=>{
+  el.addEventListener('mouseenter',()=>{ cursor.style.width='20px'; cursor.style.height='20px'; ring.style.width='60px'; ring.style.height='60px'; });
+  el.addEventListener('mouseleave',()=>{ cursor.style.width='12px'; cursor.style.height='12px'; ring.style.width='36px'; ring.style.height='36px'; });
+});
+
+/* ── HERO CANVAS ── */
+const hc = document.getElementById('hero-canvas');
+const hctx = hc.getContext('2d');
+function resizeHC(){ hc.width=window.innerWidth; hc.height=window.innerHeight; }
+resizeHC(); window.addEventListener('resize',resizeHC);
+
+const particles = Array.from({length:120},()=>({
+  x: Math.random()*window.innerWidth,
+  y: Math.random()*window.innerHeight,
+  vx: (Math.random()-0.5)*0.4,
+  vy: (Math.random()-0.5)*0.4,
+  size: Math.random()*1.5+0.3,
+  alpha: Math.random()*0.5+0.1,
+  type: Math.random()>0.7?'frame':'dot'
+}));
+
+function drawHC(){
+  hctx.clearRect(0,0,hc.width,hc.height);
+  // connections
+  particles.forEach((a,i)=>{
+    particles.slice(i+1).forEach(b=>{
+      const d=Math.hypot(a.x-b.x,a.y-b.y);
+      if(d<120){
+        hctx.beginPath();
+        hctx.strokeStyle=`rgba(0,240,255,${0.06*(1-d/120)})`;
+        hctx.lineWidth=0.5;
+        hctx.moveTo(a.x,a.y); hctx.lineTo(b.x,b.y);
+        hctx.stroke();
+      }
+    });
+  });
+  particles.forEach(p=>{
+    p.x+=p.vx; p.y+=p.vy;
+    if(p.x<0)p.x=hc.width; if(p.x>hc.width)p.x=0;
+    if(p.y<0)p.y=hc.height; if(p.y>hc.height)p.y=0;
+    if(p.type==='frame'){
+      const s=6;
+      hctx.strokeStyle=`rgba(0,240,255,${p.alpha*0.6})`;
+      hctx.lineWidth=0.5;
+      hctx.strokeRect(p.x-s/2,p.y-s/2,s,s);
+    } else {
+      hctx.beginPath();
+      hctx.arc(p.x,p.y,p.size,0,Math.PI*2);
+      hctx.fillStyle=`rgba(0,240,255,${p.alpha})`;
+      hctx.fill();
+    }
+  });
+  requestAnimationFrame(drawHC);
+}
+drawHC();
+
+/* ── DOWNLOAD CANVAS ── */
+const dc = document.getElementById('download-canvas');
+const dctx = dc.getContext('2d');
+function resizeDC(){ const r=document.getElementById('download').getBoundingClientRect(); dc.width=r.width||window.innerWidth; dc.height=r.height||window.innerHeight; }
+resizeDC(); window.addEventListener('resize',resizeDC);
+
+let dAngle=0;
+function drawDC(){
+  dctx.clearRect(0,0,dc.width,dc.height);
+  dAngle+=0.008;
+  const cx=dc.width/2, cy=dc.height/2;
+  for(let i=0;i<5;i++){
+    const radius=100+i*80;
+    const alpha=0.04-i*0.006;
+    dctx.beginPath();
+    dctx.arc(cx,cy,radius,dAngle+i,dAngle+i+Math.PI*1.5);
+    dctx.strokeStyle=`rgba(0,240,255,${alpha})`;
+    dctx.lineWidth=1;
+    dctx.stroke();
+  }
+  requestAnimationFrame(drawDC);
+}
+drawDC();
+
+/* ── FPS COUNTER ANIMATION ── */
+const fpsEl = document.getElementById('fps-counter');
+let fpsDir=1; let fpsVal=60;
+setInterval(()=>{
+  fpsVal+=fpsDir*(Math.floor(Math.random()*3+1));
+  if(fpsVal>=65){fpsDir=-1;} if(fpsVal<=57){fpsDir=1;}
+  fpsEl.textContent=fpsVal;
+},300);
+
+/* ── SCROLL REVEAL ── */
+const obs = new IntersectionObserver(entries=>{
+  entries.forEach(e=>{
+    if(e.isIntersecting){ e.target.classList.add('visible'); }
+  });
+},{threshold:0.1});
+document.querySelectorAll('.reveal').forEach(el=>obs.observe(el));
+
+/* ── NAV SCROLL EFFECT ── */
+const nav = document.querySelector('nav');
+window.addEventListener('scroll',()=>{
+  if(window.scrollY>60){
+    nav.style.background='rgba(4,4,6,0.95)';
+    nav.style.backdropFilter='blur(20px)';
+    nav.style.borderBottom='1px solid rgba(0,240,255,0.08)';
+  } else {
+    nav.style.background='linear-gradient(to bottom, rgba(4,4,6,0.9), transparent)';
+    nav.style.backdropFilter='blur(0px)';
+    nav.style.borderBottom='none';
+  }
+});
+</script>
+</body>
+</html>
